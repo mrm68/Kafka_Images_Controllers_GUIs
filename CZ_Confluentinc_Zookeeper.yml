@@ -1,0 +1,78 @@
+# CZ_Confluentinc_Zookeeper.yml
+
+version: '3.8'
+services:
+  # Confluent Zookeeper
+  controller_zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: ${cz_zookeeper_port_number}
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - ${cz_zookeeper_port_number}:${cz_zookeeper_port_number}
+    restart: always
+    command: >
+      sh -c 'echo "Zookeeper is accessible at localhost:${cz_zookeeper_port_number}"; exec /etc/confluent/docker/run'
+
+  # Confluent Kafka Broker
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - controller_zookeeper
+    ports:
+      - ${cz_broker_port_number}:${cz_broker_port_number}
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: controller_zookeeper:${cz_zookeeper_port_number}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${cz_broker_port_number}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: always
+    command: >
+      sh -c 'echo "Kafka Broker is accessible at localhost:${cz_broker_port_number}"; exec /etc/confluent/docker/run'
+
+  # Head Quarter
+  akhq:
+    image: tchiotludo/akhq:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${cz_akhq_port_number}:${cz_container_port_number}
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            local-kafka:
+              properties:
+                bootstrap.servers: "kafka:${cz_broker_port_number}"
+    restart: always
+    command: >
+      sh -c 'echo "Head Quarter is accessible at http://localhost:${cz_akhq_port_number}"; exec ./bin/akhq'
+
+  # kouncil
+  kouncil:
+    image: consdata/kouncil:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${cz_kouncil_port_number}:${cz_container_port_number}
+    environment:
+      KAFKA_BROKERS: "kafka:${cz_broker_port_number}"
+    restart: always
+    command: >
+      sh -c 'echo "Kouncil is accessible at http://localhost:${cz_kouncil_port_number}"; exec ./kouncil'
+
+  # Provectus Kafka-UI
+  provectus-kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${cz_provectus_port_number}:${cz_container_port_number}
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${cz_broker_port_number}
+    restart: always
+    command: >
+      sh -c 'echo "Provectus Kafka-UI is accessible at http://localhost:${cz_provectus_port_number}"; exec ./kafka-ui'

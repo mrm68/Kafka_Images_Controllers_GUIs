@@ -1,0 +1,79 @@
+# BZ_Bitnami_Zookeeper.yml
+
+version: '3.8'
+services:
+  # Bitnami Zookeeper
+  controller_zookeeper:
+    image: bitnami/zookeeper:latest
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: 'yes'
+      ZOO_PORT_NUMBER: ${bz_zookeeper_port_number}
+    ports:
+      - ${bz_zookeeper_port_number}:${bz_zookeeper_port_number}
+    restart: always
+    command: >
+      sh -c 'echo "Zookeeper is accessible at localhost:${bz_zookeeper_port_number}"; exec /opt/bitnami/scripts/zookeeper/run.sh'
+  
+  # Bitnami Kafka
+  kafka:
+    image: bitnami/kafka:latest
+    depends_on:
+      - controller_zookeeper
+    ports:
+      - ${bz_broker_port_number}:${bz_broker_port_number}
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: controller_zookeeper:${bz_zookeeper_port_number}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${bz_broker_port_number}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      ALLOW_PLAINTEXT_LISTENER: 'yes'
+    restart: always
+    command: >
+      sh -c 'echo "Kafka Broker is accessible at localhost:${bz_broker_port_number}"; exec /opt/bitnami/scripts/kafka/run.sh'
+
+  # Head Quarter
+  akhq:
+    image: tchiotludo/akhq:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${bz_akhq_port_number}:${bz_container_port_number}
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            local-kafka:
+              properties:
+                bootstrap.servers: "kafka:${bz_broker_port_number}"
+    restart: always
+    command: >
+      sh -c 'echo "Head Quarter is accessible at http://localhost:${bz_akhq_port_number}"; exec ./bin/akhq'
+
+  # kouncil
+  kouncil:
+    image: consdata/kouncil:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${bz_kouncil_port_number}:${bz_container_port_number}
+    environment:
+      KAFKA_BROKERS: "kafka:${bz_broker_port_number}"
+    restart: always
+    command: >
+      sh -c 'echo "Kouncil is accessible at http://localhost:${bz_kouncil_port_number}"; exec ./kouncil'
+
+  # Provectus Kafka-UI
+  provectus-kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${bz_provectus_port_number}:${bz_container_port_number}
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${bz_broker_port_number}
+    restart: always
+    command: >
+      sh -c 'echo "Provectus Kafka-UI is accessible at http://localhost:${bz_provectus_port_number}"; exec ./kafka-ui'

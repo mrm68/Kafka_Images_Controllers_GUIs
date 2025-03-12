@@ -1,0 +1,73 @@
+# BK_Bitnami_Kraft.yml
+
+version: '3.8'
+services:
+  # Bitnami Kafka Broker with Kraft
+  kafka:
+    image: bitnami/kafka:latest
+    ports:
+      - ${bk_broker_port_number}:${bk_broker_port_number}
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: PLAINTEXT://kafka:${bk_broker_port_number}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${bk_broker_port_number}
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:${bk_broker_port_number}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      ALLOW_PLAINTEXT_LISTENER: 'yes'
+    volumes:
+      - ./kafka/data:/var/lib/kafka/data
+    restart: always
+    command: >
+      sh -c 'echo "Bitnami Kafka Broker with Kraft is accessible at localhost:${bk_broker_port_number}"; exec /opt/bitnami/scripts/kafka/run.sh'
+  
+  # Head Quarter
+  akhq:
+    image: tchiotludo/akhq:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${bk_akhq_port_number}:${bk_container_port_number}
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            local-kafka:
+              properties:
+                bootstrap.servers: "kafka:${bk_broker_port_number}"
+    restart: always
+    command: >
+      sh -c 'echo "Head Quarter is accessible at http://localhost:${bk_akhq_port_number}"; exec ./bin/akhq'
+
+  # kouncil
+  kouncil:
+    image: consdata/kouncil:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${bk_kouncil_port_number}:${bk_container_port_number}
+    environment:
+      KAFKA_BROKERS: "kafka:${bk_broker_port_number}"
+    restart: always
+    command: >
+      sh -c 'echo "Kouncil is accessible at http://localhost:${bk_kouncil_port_number}"; exec ./kouncil'
+
+  # Provectus Kafka-UI
+  provectus-kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - ${bk_provectus_port_number}:${bk_container_port_number}
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${bk_broker_port_number}
+    restart: always
+    command: >
+      sh -c 'echo "Provectus Kafka-UI is accessible at http://localhost:${bk_provectus_port_number}"; exec ./kafka-ui'
